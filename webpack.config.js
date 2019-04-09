@@ -24,6 +24,7 @@ module.exports = {
         ch03: path.join(srcApp, 'ch03/ch03.js'),
         ch04: path.join(srcApp, 'ch04/ch04.js'),
         ch05: path.join(srcApp, 'ch05/ch05.js'),
+        ch07: path.join(srcApp, 'ch07/ch07.js'),
     },
     output: {
         filename: '[name].js',
@@ -47,7 +48,7 @@ module.exports = {
             title: appHtmlTitle
         }),
         ...[
-            '02', '03', '04', '05'
+            '02', '03', '04', '05', '07'
         ].map(i => {
             return new HtmlWebpackPlugin({
                 template: path.join(srcApp, 'ch' + i + '/ch' + i + '.html'),
