@@ -106,6 +106,15 @@ const WebGLUtils = function () {
    * @return {WebGLRenderingContext} The created context.
    */
   var setupWebGL = function (canvas, opt_attribs, opt_onError) {
+    // get canvas css width and height
+    var boundingRect = canvas.getBoundingClientRect();
+    var width = boundingRect.width;
+    var height = boundingRect.height;
+    var dpr = window.devicePixelRatio;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
     function handleCreationError(msg) {
       var container = document.getElementsByTagName("body")[0];
       //var container = canvas.parentNode;
