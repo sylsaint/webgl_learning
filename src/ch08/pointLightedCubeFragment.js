@@ -11,11 +11,14 @@ const VSHADER_SOURCE = `
   varying vec4 v_color;
   varying vec3 v_normal;
   varying vec3 v_position;
+  attribute vec2 attr_texCoord;
+  varying vec2 v_texCoord;
   void main() {
     gl_Position = uni_mvp_mat * attr_position;
     v_position = vec3(uni_model_mat * attr_position);
     v_normal = normalize(vec3(uni_normal_mat * attr_normal));
-    v_color = attr_color; 
+    v_color = attr_color;
+    v_texCoord = attr_texCoord;
   }
 `;
 
@@ -27,13 +30,16 @@ const FSHADER_SOURCE = `
   varying vec3 v_normal;
   varying vec3 v_position;
   varying vec4 v_color;
+  uniform sampler2D u_sampler;
+  varying vec2 v_texCoord;
   void main() {
     vec3 normal = normalize(v_normal);
     vec3 light_direct = normalize(uni_light_pos - v_position);
     float nDotL = max(dot(light_direct, normal), 0.0);
-    vec3 diffuse = uni_light_color * v_color.rgb * nDotL;
-    vec3 ambient = uni_ambient_light * v_color.rgb;
-    gl_FragColor = vec4(diffuse + ambient, v_color.a);
+    vec4 texel = texture2D(u_sampler, v_texCoord);
+    vec3 diffuse = uni_light_color * texel.rgb * nDotL;
+    vec3 ambient = uni_ambient_light * texel.rgb;
+    gl_FragColor = vec4(diffuse + ambient, texel.a);
   }
 `;
 
@@ -106,6 +112,10 @@ export default function main() {
 
   running = true;
 
+  if (!initTextures(gl, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat, n)) {
+    console.log('Failed to initialize the textures ');
+    return -1;
+  }
   tick(gl, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat, n);
 
   /*
@@ -134,9 +144,9 @@ function initVertexBuffers(gl) {
     // Vertex coordinates and color
     1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, // front
     1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, // right
-    1.0, 1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, // up 
+    1.0, 1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, // up
     -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, // left
-    -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0, -1.0, // down 
+    -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0, -1.0, // down
     1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, // back
   ]);
 
@@ -163,9 +173,9 @@ function initVertexBuffers(gl) {
   const normals = new Float32Array([
     0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, // front
     1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, // right
-    0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, //  up 
-    -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, // left 
-    0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, // down 
+    0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, //  up
+    -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, // left
+    0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, // down
     0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, // back
   ])
 
@@ -176,6 +186,16 @@ function initVertexBuffers(gl) {
     return;
   }
 
+  // assign texture coord to attr_texCoord and enable it
+  const texCoords = new Float32Array([
+    1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+    1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+    1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+    1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+    1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+    1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+  ]);
+
   if (!initArrayBuffer(gl, vertices, 3, gl.FLOAT, 'attr_position')) {
     return -1;
   }
@@ -185,6 +205,10 @@ function initVertexBuffers(gl) {
   }
 
   if (!initArrayBuffer(gl, normals, 3, gl.FLOAT, 'attr_normal')) {
+    return -1;
+  }
+
+  if (!initArrayBuffer(gl, texCoords, 2, gl.FLOAT, 'attr_texCoord')) {
     return -1;
   }
 
@@ -217,12 +241,12 @@ function initArrayBuffer(gl, data, num, type, attribute) {
 
 let rotate = 0;
 
-function tick(gl, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat, n) {
+function tick(gl, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat, u_sampler, n) {
   if (running) {
-    rotate = (rotate + 1) % 360;
+    rotate = (rotate + 0.5) % 360;
     draw(gl, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat, n, rotate);
     requestAnimationFrame(() => {
-      tick(gl, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat, n);
+      tick(gl, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat, u_sampler, n);
     })
   }
 }
@@ -241,6 +265,12 @@ function draw(gl, canvas, uni_mvp_mat, uni_mode_mat, uni_normal_mat, n, rotate) 
   normalMatrix.setInverseOf(modelMatrix);
   normalMatrix.transpose();
   gl.uniformMatrix4fv(uni_normal_mat, false, normalMatrix.elements);
+  const u_sampler = gl.getUniformLocation(gl.program, 'u_sampler');
+  if (u_sampler < 0) {
+    console.log('Failed to get u_sampler');
+    return;
+  }
+  gl.uniform1i(u_sampler, 0);
 
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -249,4 +279,45 @@ function draw(gl, canvas, uni_mvp_mat, uni_mode_mat, uni_normal_mat, n, rotate) 
 
 export function clear() {
   running = false;
+}
+
+function initTextures(gl, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat, n) {
+  const texture = gl.createTexture();
+  if (!texture) {
+    console.log('Failed to init texture.');
+    return;
+  }
+  const u_sampler = gl.getUniformLocation(gl.program, 'u_sampler');
+  if (u_sampler < 0) {
+    console.log('Failed to get u_sampler');
+    return;
+  }
+  const image = new Image();
+  image.onload = () => {
+    loadTexture(gl, n, texture, u_sampler, image, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat);
+  }
+  image.src = './assets/resources/particle.png';
+  return true;
+}
+
+function loadTexture(gl, n, texture, u_sampler, image, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat) {
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // flip the y-axis
+  // turn on 0 texture unit
+  gl.activeTexture(gl.TEXTURE0);
+  // bind texture object to target
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // config the params
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
+  // config the image
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+
+  // transfer 0 texture to shader
+  gl.uniform1i(u_sampler, 0);
+
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  tick(gl, canvas, uni_mvp_mat, uni_model_mat, uni_normal_mat, u_sampler, n);
 }
